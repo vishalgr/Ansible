@@ -1,0 +1,101 @@
+---
+  - name: Installing tomcat
+    hosts: 34.220.88.54
+    gather_facts: false
+
+    vars:
+      req_java: java-1.8.0-openjdk
+      set_java: jre-1.8.0-openjdk
+      tomcat_ver: 9.0.41
+      tomcat_archive_url: https://mirror.novg.net/apache/tomcat/tomcat-{{tomcat_ver.split('.')[0]}}/v{{tomcat_ver}}/bin/apache-tomcat-{{tomcat_ver}}.tar.gz
+      tomcat_archive_dest:  /tmp/apache-tomcat-{{ tomcat_ver }}.tar.gz
+      tomcat_port: 8090
+      ui_manager_user: tomcat
+      ui_manager_pass: qwerty123
+      ui_admin_username: tomcat
+      ui_admin_pass: qwerty123
+    become: yes
+    become_method: sudo
+    tasks:
+      - name: updating repos
+        yum:
+          name: "*"
+          state: latest
+
+      - name: Creating a directory myapp
+        file:
+          path: /usr/myapp
+          state: directory
+
+      - name: Installing required java
+        yum:
+          name: "{{req_java}}"
+          state: present
+
+      - name: Add tomcat group
+        group:
+          name: tomcat
+
+      - name: Add "tomcat" user
+        user:
+          name: tomcat
+          group: tomcat
+          home: /usr/share/tomcat
+          createhome: no
+          system: yes
+
+      - name: Downloading required tomcat
+        get_url:
+          url: "{{ tomcat_archive_url }}"
+          dest: "{{ tomcat_archive_dest }}"
+
+      - name: Create a tomcat directory
+        file:
+          path: /usr/share/tomcat
+          state: directory
+          owner: tomcat
+          group: tomcat
+
+      - name: Extracting downloaded tomcat
+        unarchive:
+          src: "{{ tomcat_archive_dest }}"
+          dest: /usr/share/tomcat
+          owner: tomcat
+          group: tomcat
+          remote_src: yes
+          creates: /usr/share/tomcat/bin
+
+      - name: Replacing default port with required port
+        template:
+          src: templates/server.xml.j2
+          dest: /usr/share/tomcat/apache-tomcat-{{ tomcat_ver }}/conf/server.xml
+
+      - name: Start and enable tomcat
+        shell: nohup /usr/share/tomcat/apache-tomcat-{{ tomcat_ver }}/bin/startup.sh &
+
+      - name: Set UI access credentials
+        template:
+          src: templates/tomcat-users.xml.j2
+          dest: /usr/share/tomcat/apache-tomcat-{{ tomcat_ver }}/conf/tomcat-users.xml
+
+      - name: Allow access to Manager and Host Manager apps from any IP
+        template:
+          src: templates/context.xml.j2
+          dest: "{{ item }}"
+        with_items:
+          - /usr/share/tomcat/apache-tomcat-{{ tomcat_ver }}/webapps/host-manager/META-INF/context.xml
+          - /usr/share/tomcat/apache-tomcat-{{ tomcat_ver }}/webapps/manager/META-INF/context.xml
+
+      - name: Copying WAR file to myapp directory
+        copy:
+          src: SampleWebApp.war
+          dest: /usr/myapp/
+
+      - name: Extracting copied WAR file
+        copy:
+          src: /usr/myapp/SampleWebApp.war
+          dest: /usr/share/tomcat/apache-tomcat-9.0.41/webapps/
+          owner: tomcat
+          group: tomcat
+          remote_src: yes
+
