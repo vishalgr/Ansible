@@ -88,7 +88,7 @@
 
       - name: Copying WAR file to myapp directory
         copy:
-          src: ./WAR/SampleWebApp.war
+          src: SampleWebApp.war
           dest: /usr/myapp/
 
       - name: Extracting copied WAR file
